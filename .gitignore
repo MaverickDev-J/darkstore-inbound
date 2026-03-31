@@ -33,3 +33,6 @@ test_ws.py
 .env
 *.env
 confidential.txt
+
+debug_out.txt
+*.txt.out

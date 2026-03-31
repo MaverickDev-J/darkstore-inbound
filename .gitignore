@@ -29,6 +29,7 @@ desktop.ini
 test_results.txt
 test_ws.py
 
-# Secrets
+# Secrets — never commit these
+.env
 *.env
 confidential.txt

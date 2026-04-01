@@ -1,6 +1,6 @@
----
+﻿---
 title: Darkstore Inbound Environment Server
-emoji: 📦
+emoji: warehouse
 colorFrom: yellow
 colorTo: red
 sdk: docker
@@ -15,7 +15,7 @@ tags:
 
 A real-world OpenEnv simulation of a quick-commerce (dark store) receiving dock. An LLM agent must inspect incoming deliveries, compare physical scan data against purchase orders, and check cold chain logs to make accept, reject, or shortage decisions.
 
-## 🎯 Motivation
+## Motivation
 
 Supply chain reconciliation (three-way matching) is a $100B+ industry problem. When goods arrive at a warehouse or dark store, receiving agents must rapidly verify that:
 1. What arrived matches what was ordered (Purchase Order).
@@ -24,7 +24,7 @@ Supply chain reconciliation (three-way matching) is a $100B+ industry problem. W
 
 This environment simulates this exact process, testing an agent's ability to iteratively gather information, perform arithmetic checks, follow specific business policies, and identify hidden safety violations.
 
-## 🔍 Task Descriptions & Expected Difficulty
+##  Task Descriptions & Expected Difficulty
 
 This environment comes with 3 built-in tasks, each scored by a deterministic grader from 0.0 to 1.0.
 
@@ -36,20 +36,20 @@ This environment comes with 3 built-in tasks, each scored by a deterministic gra
 
 ---
 
-## 🚀 Baseline Scores
+##  Baseline Scores
 
 Here are the baseline scores using the included `inference.py` script.
 
 | Task | Difficulty | Score (`gpt-4.1` on Lightning AI) |
 |---|---|---|
-| `clean_delivery` | Easy | **1.00** ✅ |
-| `quantity_mismatch` | Medium | **1.00** ✅ |
-| `hidden_violation` | Hard | **0.82** ✅ |
+| `clean_delivery` | Easy | **1.00**  |
+| `quantity_mismatch` | Medium | **1.00**  |
+| `hidden_violation` | Hard | **0.82**  |
 | **Average** | | **0.94** |
 
 ---
 
-## 📦 Observation Space
+##  Observation Space
 
 The state is progressively revealed. The agent only sees the Purchase Order initially and must take actions to reveal other documents.
 
@@ -66,7 +66,7 @@ The observation is provided as a JSON dictionary (via Pydantic):
 - `resolved_skus` (List[str]): SKUs already decided upon.
 - `message` (str): System feedback from the previous action.
 
-## 🎮 Action Space
+##  Action Space
 
 The agent can take the following actions by sending a JSON object containing an `action_type` and relevant parameters.
 
@@ -85,7 +85,7 @@ The agent can take the following actions by sending a JSON object containing an 
 
 ---
 
-## 🛠 Setup & Usage Instructions
+##  Setup & Usage Instructions
 
 ### 1. Installation
 
@@ -128,3 +128,4 @@ python inference.py
 ```bash
 openenv push --repo-id your-hf-username/darkstore-inbound
 ```
+

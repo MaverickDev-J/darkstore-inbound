@@ -42,16 +42,14 @@ app = create_app(
     max_concurrent_envs=1,
 )
 
-
-def main(host: str = "0.0.0.0", port: int = 8000):
-    """Entry point for uv run server."""
+def main():
     import uvicorn
-    uvicorn.run(app, host=host, port=port)
-
-
-if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
-    main(port=args.port)
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
+
+
+if __name__ == "__main__":
+    main()

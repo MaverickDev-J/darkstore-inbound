@@ -1,6 +1,6 @@
-﻿---
+---
 title: Darkstore Inbound Environment Server
-emoji: warehouse
+emoji: 📦
 colorFrom: yellow
 colorTo: red
 sdk: docker

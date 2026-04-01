@@ -29,7 +29,7 @@ except Exception as e:
 try:
     from ..models import DarkstoreInboundAction, DarkstoreInboundObservation
     from .darkstore_inbound_environment import DarkstoreInboundEnvironment
-except ModuleNotFoundError:
+except (ImportError, ModuleNotFoundError):
     from models import DarkstoreInboundAction, DarkstoreInboundObservation
     from server.darkstore_inbound_environment import DarkstoreInboundEnvironment
 

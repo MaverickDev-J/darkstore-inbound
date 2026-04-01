@@ -6,6 +6,9 @@
 
 """Darkstore Inbound environment server components."""
 
-from .darkstore_inbound_environment import DarkstoreInboundEnvironment
+try:
+    from .darkstore_inbound_environment import DarkstoreInboundEnvironment
+except ImportError:
+    from darkstore_inbound_environment import DarkstoreInboundEnvironment
 
 __all__ = ["DarkstoreInboundEnvironment"]

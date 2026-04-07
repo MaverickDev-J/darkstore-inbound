@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-07T22:17:43.124284",
+  "timestamp": "2026-04-07T22:38:28.258981",
   "env": "darkstore_inbound",
   "api_base": "https://router.huggingface.co/v1",
   "tasks": [
@@ -17,23 +17,23 @@
         {
           "task": "clean_delivery",
           "difficulty": "easy",
-          "score": 1.0,
-          "steps": 11,
+          "score": 0.3,
+          "steps": 4,
           "success": true
         },
         {
           "task": "quantity_mismatch",
           "difficulty": "medium",
-          "score": 0.8667,
-          "steps": 12,
-          "success": true
+          "score": 0.0,
+          "steps": 1,
+          "success": false
         },
         {
           "task": "hidden_violation",
           "difficulty": "hard",
-          "score": 0.5719,
-          "steps": 13,
-          "success": true
+          "score": 0.0,
+          "steps": 1,
+          "success": false
         },
         {
           "task": "price_discrepancy",
@@ -45,12 +45,12 @@
         {
           "task": "multi_violation_chaos",
           "difficulty": "expert",
-          "score": 0.441,
-          "steps": 9,
+          "score": 0.0667,
+          "steps": 4,
           "success": true
         }
       ],
-      "average_score": 0.5759
+      "average_score": 0.0733
     },
     {
       "model_id": "meta-llama/Llama-3.3-70B-Instruct",
@@ -59,8 +59,8 @@
         {
           "task": "clean_delivery",
           "difficulty": "easy",
-          "score": 0.5333,
-          "steps": 6,
+          "score": 0.3,
+          "steps": 1,
           "success": true
         },
         {
@@ -80,19 +80,19 @@
         {
           "task": "price_discrepancy",
           "difficulty": "medium_hard",
-          "score": 0.0,
-          "steps": 1,
-          "success": false
+          "score": 0.15,
+          "steps": 4,
+          "success": true
         },
         {
           "task": "multi_violation_chaos",
           "difficulty": "expert",
-          "score": 0.09,
-          "steps": 5,
-          "success": true
+          "score": 0.0,
+          "steps": 1,
+          "success": false
         }
       ],
-      "average_score": 0.1247
+      "average_score": 0.09
     },
     {
       "model_id": "Qwen/Qwen2.5-32B-Instruct",
@@ -157,9 +157,9 @@
         {
           "task": "hidden_violation",
           "difficulty": "hard",
-          "score": 0.0667,
-          "steps": 4,
-          "success": true
+          "score": 0.0,
+          "steps": 1,
+          "success": false
         },
         {
           "task": "price_discrepancy",
@@ -176,7 +176,7 @@
           "success": false
         }
       ],
-      "average_score": 0.0733
+      "average_score": 0.06
     }
   ]
 }

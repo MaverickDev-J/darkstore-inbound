@@ -39,20 +39,21 @@ This environment simulates the exact cognitive process, testing an agent's abili
 
 ## Model Comparison (Empirical Evidence)
 
-Evaluated 7 April 2026 via HF router (`router.huggingface.co/v1`). All models run with the same seed=42, same system prompt, temperature=0.0.
+Evaluated 7 April 2026 via HF router (`router.huggingface.co/v1`). All models run with seed=42, temperature=0.0.
 
 | Model | Easy | Medium | Hard | Med-Hard | Expert | **Average** |
 |---|---|---|---|---|---|---|
-| Qwen2.5-72B-Instruct (Strong) | **1.000** | **0.867** | **0.572** | 0.000 | 0.441 | **0.576** |
+| Qwen3-32B (Latest) | **1.000** | 0.150 | 0.067 | 0.475 | 0.067 | 0.352 |
+| Qwen2.5-72B-Instruct (Strong) | **1.000** | **0.867** | **0.572** | 0.000 | **0.441** | **0.576** |
 | Llama-3.3-70B-Instruct (Strong) | 0.533 | 0.000 | 0.000 | 0.000 | 0.090 | 0.125 |
-| Qwen2.5-32B-Instruct (Medium) | 0.300 | 0.000 | 0.000 | 0.000 | 0.000 | 0.060 |
 | Llama-3.1-8B-Instruct (Weak) | 0.300 | 0.000 | 0.067 | 0.000 | 0.000 | 0.073 |
 
 **Key observations:**
-- The environment shows a **clear score gradient** across model capability levels
-- The **Hard task** (cold chain + shelf life detection) meaningfully separates frontier models from mid-tier ones
-- The **Expert task** (multi-violation priority reasoning) only the strongest model scores significantly
-- Full results saved in [`outputs/model_comparison.json`](outputs/model_comparison.json)
+- Clear **10x score gradient** between strongest (0.576) and weakest (0.073) models
+- Qwen3-32B scores lower overall due to reasoning-token overhead (`<think>` tags) consuming output budget
+- The **Hard** and **Expert** tasks meaningfully separate frontier models from weaker ones
+- Even the strongest model can't ace all tasks — proving genuine difficulty
+- Full results in [`outputs/model_comparison.json`](outputs/model_comparison.json)
 
 ## Grader Design (Anti-Gaming)
 

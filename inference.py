@@ -232,6 +232,9 @@ def play_episode(client: OpenAI, env_url: str, task: Dict[str, Any]) -> Dict[str
         if VERBOSE:
             print(f"Reset OK. {sku_count} SKUs to inspect. Pending: {pending}. Done: {done}")
 
+        # --- Required structured output block: START ---
+        print(f"[START] task={task_name}", flush=True)
+
         history: List[Dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
         step_count = 0
         final_score = 0.0
@@ -292,8 +295,13 @@ def play_episode(client: OpenAI, env_url: str, task: Dict[str, Any]) -> Dict[str
             done = payload.get("done", False)
             reward = payload.get("reward", 0.0)
 
+            # --- Required structured output block: STEP ---
+            print(f"[STEP] step={step_count} reward={reward}", flush=True)
+
             if done:
                 final_score = reward
+                # --- Required structured output block: END ---
+                print(f"[END] task={task_name} score={final_score} steps={step_count}", flush=True)
                 if VERBOSE:
                     print(f"\n  Done! Score: {final_score}")
                     print(f"  {obs.get('message', '')}")

@@ -62,37 +62,35 @@ VERBOSE = True
 # System prompt
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """You are a warehouse receiving dock agent for a dark store.
+SYSTEM_PROMPT = """You are a receiving dock agent at a dark store (quick-commerce warehouse).
+A supplier delivery has arrived. Your job is to inspect it thoroughly and decide what to accept, flag, or reject.
 
-## MANDATORY FIRST STEPS — do these three BEFORE any decisions:
-1. {"action_type": "request_invoice"}
-2. {"action_type": "request_scan"}
-3. {"action_type": "request_cold_chain"}
+## YOUR WORKFLOW
 
-## THEN for each SKU in pending_skus, make ONE decision:
-- accept_sku: everything is fine
-- flag_shortage: scanned quantity is less than ordered  (shortage_qty = ordered - scanned)
-- reject_sku: item fails a check  (must include reason)
+Step 1 — Gather all available data before making any decisions:
+  - Request the supplier invoice
+  - Request the physical scan data
+  - Request the cold chain temperature log
 
-## CHECKS to apply to every SKU:
-1. If scanned_qty < PO quantity   -> flag_shortage with shortage_qty = (PO_qty - scanned_qty)
-2. If invoice SKU != PO SKU       -> reject, reason="unauthorized_substitution"
-3. If condition is "damaged" or "leaking" -> reject, reason="damaged"
-4. If days until expiry < min_shelf_life_days (today is 2026-04-01) -> reject, reason="shelf_life_violation"
-5. If ANY cold_chain temperature > max_transit_temp_celsius -> reject, reason="cold_chain_violation"
+Step 2 — For each SKU in pending_skus, make exactly one decision:
+  - accept_sku: item is fine, accept it
+  - flag_shortage: fewer units arrived than ordered (provide the shortage_qty)
+  - reject_sku: item fails inspection (provide the rejection reason)
 
-## Valid reason values (copy exactly):
+Step 3 — When all pending_skus are empty, call finalize.
+
+## VALID REJECTION REASONS
 "damaged" | "expired" | "shelf_life_violation" | "cold_chain_violation" | "unauthorized_substitution"
 
-## When pending_skus is empty, call:
-{"action_type": "finalize"}
+## OUTPUT FORMAT
+Respond with exactly one JSON action per turn. No text, no explanation, just JSON.
 
-## RESPONSE FORMAT: JSON ONLY — no text, no markdown, no explanation.
+Examples:
 {"action_type": "request_invoice"}
 {"action_type": "request_scan"}
 {"action_type": "request_cold_chain"}
 {"action_type": "accept_sku", "sku_id": "SKU001"}
-{"action_type": "flag_shortage", "sku_id": "SKU002", "shortage_qty": 6}
+{"action_type": "flag_shortage", "sku_id": "SKU002", "shortage_qty": 5}
 {"action_type": "reject_sku", "sku_id": "SKU003", "reason": "damaged"}
 {"action_type": "finalize"}
 """
@@ -212,6 +210,7 @@ def play_episode(client: OpenAI, env_url: str, task: Dict[str, Any]) -> Dict[str
     task_name = task["name"]
     seed = task["seed"]
     difficulty = task["difficulty"]
+    env_name = "darkstore_inbound"
 
     if VERBOSE:
         print(f"\n{'=' * 55}")
@@ -220,95 +219,112 @@ def play_episode(client: OpenAI, env_url: str, task: Dict[str, Any]) -> Dict[str
 
     ws_url = env_url.replace("http://", "ws://").replace("https://", "wss://") + "/ws"
 
-    with websockets.sync.client.connect(ws_url) as ws:
-        # Reset
-        ws.send(json.dumps({"type": "reset", "data": {"task": task_name, "seed": seed}}))
-        r = json.loads(ws.recv())
-        obs = r["data"]["observation"]
-        done = r["data"].get("done", False)  # check if reset returned done=True
+    step_count = 0
+    final_score = 0.0
+    rewards: List[float] = []
+    end_emitted = False
+    success = False
 
-        sku_count = len(obs.get("purchase_order", []))
-        pending = obs.get("pending_skus", [])
-        if VERBOSE:
-            print(f"Reset OK. {sku_count} SKUs to inspect. Pending: {pending}. Done: {done}")
+    # --- Structured output: START (always emitted before anything else) ---
+    print(f"[START] task={task_name} env={env_name} model={MODEL}", flush=True)
 
-        # --- Required structured output block: START ---
-        print(f"[START] task={task_name}", flush=True)
-
-        history: List[Dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
-        step_count = 0
-        final_score = 0.0
-
-        while not done:
-            step_count += 1
-            obs_text = format_observation(obs)
-
-            history.append({"role": "user", "content": obs_text})
-
-            # Small delay to avoid rate limiting
-            if step_count > 1:
-                time.sleep(1)
-
-            # Call LLM (with retry on rate limit)
-            raw = ""
-            for attempt in range(2):
-                try:
-                    resp = client.chat.completions.create(
-                        model=MODEL,
-                        messages=history,
-                        max_tokens=MAX_TOKENS,
-                        temperature=0.0,
-                    )
-                    raw = resp.choices[0].message.content or ""
-                    break
-                except Exception as e:
-                    err_msg = str(e).lower()
-                    if "rate limit" in err_msg or "429" in err_msg:
-                        if attempt == 0:
-                            print(f"  Rate limited, waiting 10s...")
-                            time.sleep(10)
-                        else:
-                            print(f"  Rate limit persists, finalizing")
-                            raw = '{"action_type": "finalize"}'
-                    else:
-                        print(f"  LLM error: {e}")
-                        raw = '{"action_type": "finalize"}'
-                        break
-
-            action = parse_action(raw)
-            if action is None:
-                if VERBOSE:
-                    print(f"  Step {step_count}: parse failed, finalizing. Raw: {raw[:100]}")
-                action = {"action_type": "finalize"}
-
-            if VERBOSE:
-                summary = json.dumps(action)[:90]
-                print(f"  Step {step_count}: {summary}")
-
-            history.append({"role": "assistant", "content": raw})
-
-            # Step environment
-            ws.send(json.dumps({"type": "step", "data": action}))
+    try:
+        with websockets.sync.client.connect(ws_url) as ws:
+            # Reset
+            ws.send(json.dumps({"type": "reset", "data": {"task": task_name, "seed": seed}}))
             r = json.loads(ws.recv())
-            payload = r["data"]
-            obs = payload["observation"]
-            done = payload.get("done", False)
-            reward = payload.get("reward", 0.0)
+            obs = r["data"]["observation"]
+            done = r["data"].get("done", False)
 
-            # --- Required structured output block: STEP ---
-            print(f"[STEP] step={step_count} reward={reward}", flush=True)
+            sku_count = len(obs.get("purchase_order", []))
+            pending = obs.get("pending_skus", [])
+            if VERBOSE:
+                print(f"Reset OK. {sku_count} SKUs to inspect. Pending: {pending}. Done: {done}")
 
-            if done:
-                final_score = reward
-                # --- Required structured output block: END ---
-                print(f"[END] task={task_name} score={final_score} steps={step_count}", flush=True)
+            history: List[Dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+            while not done:
+                step_count += 1
+                obs_text = format_observation(obs)
+
+                history.append({"role": "user", "content": obs_text})
+
+                # Small delay to avoid rate limiting
+                if step_count > 1:
+                    time.sleep(1)
+
+                # Call LLM (with retry on rate limit)
+                raw = ""
+                last_error: Optional[str] = None
+                for attempt in range(2):
+                    try:
+                        resp = client.chat.completions.create(
+                            model=MODEL,
+                            messages=history,
+                            max_tokens=MAX_TOKENS,
+                            temperature=0.0,
+                        )
+                        raw = resp.choices[0].message.content or ""
+                        break
+                    except Exception as e:
+                        err_msg = str(e).lower()
+                        if "rate limit" in err_msg or "429" in err_msg:
+                            if attempt == 0:
+                                print(f"  Rate limited, waiting 10s...", flush=True)
+                                time.sleep(10)
+                            else:
+                                print(f"  Rate limit persists, finalizing", flush=True)
+                                raw = '{"action_type": "finalize"}'
+                        else:
+                            print(f"  LLM error: {e}", flush=True)
+                            raw = '{"action_type": "finalize"}'
+                            break
+
+                action = parse_action(raw)
+                if action is None:
+                    if VERBOSE:
+                        print(f"  Step {step_count}: parse failed, finalizing. Raw: {raw[:100]}")
+                    action = {"action_type": "finalize"}
+
+                action_str = action.get("action_type", "unknown")
                 if VERBOSE:
-                    print(f"\n  Done! Score: {final_score}")
-                    print(f"  {obs.get('message', '')}")
+                    summary = json.dumps(action)[:90]
+                    print(f"  Step {step_count}: {summary}")
 
-            # Trim history to avoid token explosion
-            if len(history) > 24:
-                history = [history[0]] + history[-22:]
+                history.append({"role": "assistant", "content": raw})
+
+                # Step environment
+                ws.send(json.dumps({"type": "step", "data": action}))
+                r = json.loads(ws.recv())
+                payload = r["data"]
+                obs = payload["observation"]
+                done = payload.get("done", False)
+                reward = payload.get("reward", 0.0)
+                error_msg = payload.get("last_action_error", None)
+
+                rewards.append(reward)
+
+                # --- Structured output: STEP ---
+                done_str = str(done).lower()
+                error_str = error_msg if error_msg else "null"
+                print(f"[STEP] step={step_count} action={action_str} reward={reward:.2f} done={done_str} error={error_str}", flush=True)
+
+                if done:
+                    final_score = reward
+                    success = final_score > 0
+                    if VERBOSE:
+                        print(f"\n  Done! Score: {final_score}")
+                        print(f"  {obs.get('message', '')}")
+
+                # Trim history to avoid token explosion
+                if len(history) > 24:
+                    history = [history[0]] + history[-22:]
+
+    finally:
+        # --- Structured output: END (ALWAYS emitted, even on exception) ---
+        rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.00"
+        print(f"[END] success={str(success).lower()} steps={step_count} score={final_score:.2f} rewards={rewards_str}", flush=True)
+        end_emitted = True
 
     return {"task": task_name, "difficulty": difficulty, "score": final_score, "steps": step_count}
 

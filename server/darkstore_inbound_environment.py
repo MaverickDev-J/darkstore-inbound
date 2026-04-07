@@ -15,6 +15,7 @@ Implements the OpenEnv 3-method interface: reset(), step(), state.
 """
 
 from uuid import uuid4
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from openenv.core.env_server.interfaces import Environment
@@ -153,7 +154,7 @@ class DarkstoreInboundEnvironment(Environment):
             scenario_seed=actual_seed,
             max_steps=MAX_STEPS,
             ground_truth=ground_truth,
-            delivery_date="2026-04-01",
+            delivery_date=datetime.now().strftime("%Y-%m-%d"),
         )
 
         # Reset reveal flags
@@ -285,14 +286,10 @@ class DarkstoreInboundEnvironment(Environment):
         self._pending_skus.remove(sku_id)
         self._resolved_skus.append(sku_id)
 
-        # Check against ground truth for per-step reward
-        expected = self._state.ground_truth.get(sku_id, {})
-        if expected.get("action") == "accept":
-            reward = 0.1  # Correct acceptance
-            msg = f"✓ SKU {sku_id} accepted."
-        else:
-            reward = -0.15  # Wrongly accepted something that should have been flagged/rejected
-            msg = f"SKU {sku_id} accepted. (Decision recorded)"
+        # Uniform progress reward — does not leak ground truth.
+        # Correctness is only revealed at finalize() via the grader.
+        reward = 0.02
+        msg = f"SKU {sku_id} accepted. Decision recorded."
 
         self._cumulative_reward += reward
         return self._build_observation(reward=reward, done=False, message=msg)
@@ -328,19 +325,10 @@ class DarkstoreInboundEnvironment(Environment):
         self._pending_skus.remove(sku_id)
         self._resolved_skus.append(sku_id)
 
-        # Check against ground truth
-        expected = self._state.ground_truth.get(sku_id, {})
-        if expected.get("action") == "flag_shortage":
-            expected_qty = expected.get("shortage_qty", 0)
-            if shortage_qty == expected_qty:
-                reward = 0.15  # Correct flag with exact quantity
-                msg = f"✓ SKU {sku_id} shortage flagged: {shortage_qty} units short."
-            else:
-                reward = 0.08  # Correct flag but wrong quantity (partial credit)
-                msg = f"SKU {sku_id} shortage flagged: {shortage_qty} units. (Quantity recorded)"
-        else:
-            reward = -0.1  # Incorrectly flagged a non-shortage item
-            msg = f"SKU {sku_id} flagged as shortage. (Decision recorded)"
+        # Uniform progress reward — does not leak ground truth.
+        # Correctness is only revealed at finalize() via the grader.
+        reward = 0.02
+        msg = f"SKU {sku_id} shortage flagged: {shortage_qty} units. Decision recorded."
 
         self._cumulative_reward += reward
         return self._build_observation(reward=reward, done=False, message=msg)
@@ -373,18 +361,10 @@ class DarkstoreInboundEnvironment(Environment):
         self._pending_skus.remove(sku_id)
         self._resolved_skus.append(sku_id)
 
-        # Check against ground truth
-        expected = self._state.ground_truth.get(sku_id, {})
-        if expected.get("action") == "reject":
-            if reason == expected.get("reason"):
-                reward = 0.2  # Correct rejection with correct reason
-                msg = f"✓ SKU {sku_id} rejected: {reason}."
-            else:
-                reward = 0.1  # Correct rejection but wrong reason (partial credit)
-                msg = f"SKU {sku_id} rejected: {reason}. (Decision recorded)"
-        else:
-            reward = -0.1  # False rejection
-            msg = f"SKU {sku_id} rejected: {reason}. (Decision recorded)"
+        # Uniform progress reward — does not leak ground truth.
+        # Correctness is only revealed at finalize() via the grader.
+        reward = 0.02
+        msg = f"SKU {sku_id} rejected (reason: {reason}). Decision recorded."
 
         self._cumulative_reward += reward
         return self._build_observation(reward=reward, done=False, message=msg)

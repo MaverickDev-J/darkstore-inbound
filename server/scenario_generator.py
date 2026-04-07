@@ -58,7 +58,9 @@ PRODUCT_CATALOG = [
 ]
 
 
-DELIVERY_DATE = "2026-04-01"  # Fixed simulated delivery date
+def _get_delivery_date() -> str:
+    """Return today's date as simulated delivery date."""
+    return datetime.now().strftime("%Y-%m-%d")
 
 
 def _make_batch_number(rng: random.Random) -> str:
@@ -71,7 +73,7 @@ def _make_batch_number(rng: random.Random) -> str:
 
 def _make_expiry(rng: random.Random, days_ahead: int) -> str:
     """Generate an expiry date N days after the delivery date."""
-    base = datetime.strptime(DELIVERY_DATE, "%Y-%m-%d")
+    base = datetime.strptime(_get_delivery_date(), "%Y-%m-%d")
     expiry = base + timedelta(days=days_ahead)
     return expiry.strftime("%Y-%m-%d")
 
@@ -110,13 +112,12 @@ def generate_easy_scenario(
     """
     Generate a clean delivery scenario (Easy task).
 
-    5 SKUs, all quantities match across PO/Invoice/Scan.
-    All items have good shelf life and condition.
-    Cold chain is clean.
-    Correct agent response: accept all 5 SKUs.
+    4-6 SKUs, all quantities match. Good shelf life and condition.
+    Cold chain is clean. Correct agent response: accept all SKUs.
     """
     rng = random.Random(seed)
-    products = rng.sample(PRODUCT_CATALOG, 5)
+    n_skus = rng.randint(4, 6)
+    products = rng.sample(PRODUCT_CATALOG, n_skus)
 
     purchase_order = []
     invoice = []
@@ -168,39 +169,45 @@ def generate_medium_scenario(
     """
     Generate a scenario with discrepancies (Medium task).
 
-    8 SKUs total:
-    - 5 clean items (quantities match everywhere)
-    - 2 items with quantity shortages (scan < PO, invoice matches scan — supplier short-shipped)
-    - 1 item is an unauthorized substitution (invoice has different SKU than PO)
+    6-10 SKUs total. Violations include 1-3 quantity shortages and
+    0-2 unauthorized substitutions at randomized positions.
 
     Correct agent response:
-    - Accept 5 clean items
-    - Flag shortages for 2 items with correct shortage amounts
-    - Reject 1 item as unauthorized substitution
+    - Accept clean items
+    - Flag shortages with correct amount
+    - Reject substitutions
     """
     rng = random.Random(seed)
-    products = rng.sample(PRODUCT_CATALOG, 9)  # 8 used + 1 for substitution
+    n_skus = rng.randint(6, 10)
+    n_shortages = rng.randint(1, min(3, n_skus - 2))
+    n_subs = rng.randint(0, min(2, n_skus - n_shortages - 2))
+    n_violations = n_shortages + n_subs
+
+    # Need extra products for substitution replacements
+    products = rng.sample(PRODUCT_CATALOG, min(n_skus + n_subs, len(PRODUCT_CATALOG)))
+    base_products = products[:n_skus]
+    sub_replacements = products[n_skus:n_skus + n_subs]
+
+    # Randomize which positions get each violation type
+    all_indices = list(range(n_skus))
+    rng.shuffle(all_indices)
+    shortage_indices = set(all_indices[:n_shortages])
+    sub_indices = set(all_indices[n_shortages:n_shortages + n_subs])
+    sub_iter = iter(sub_replacements)
 
     purchase_order = []
     invoice = []
     scan_data = []
     ground_truth = {}
 
-    # Pick indices for discrepancies
-    shortage_indices = [0, 1]  # First two products will have shortages
-    sub_index = 2              # Third product will be substituted
-    sub_product = products[8]  # Use 9th product as the unauthorized substitution
-
-    for i, (sku_id, name, price) in enumerate(products[:8]):
+    for i, (sku_id, name, price) in enumerate(base_products):
         qty = rng.randint(20, 60)
 
         if i in shortage_indices:
-            # Shortage: PO says qty, but scan shows fewer
             short_amount = rng.randint(3, min(10, qty - 1))
             actual_qty = qty - short_amount
 
             purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
-            # Invoice matches the short amount (supplier invoiced what they sent)
             invoice.append(LineItem(sku_id=sku_id, name=name, quantity=actual_qty, unit_price=price))
             scan_data.append(
                 ScanItem(
@@ -216,16 +223,13 @@ def generate_medium_scenario(
                 "shortage_qty": short_amount,
             }
 
-        elif i == sub_index:
-            # Unauthorized substitution: PO has one product, invoice/scan has another
-            sub_sku, sub_name, sub_price = sub_product
-
+        elif i in sub_indices:
+            sub_sku_id, sub_name, sub_price = next(sub_iter)
             purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
-            # Invoice shows substituted product
-            invoice.append(LineItem(sku_id=sub_sku, name=sub_name, quantity=qty, unit_price=sub_price))
+            invoice.append(LineItem(sku_id=sub_sku_id, name=sub_name, quantity=qty, unit_price=sub_price))
             scan_data.append(
                 ScanItem(
-                    sku_id=sub_sku,
+                    sku_id=sub_sku_id,
                     scanned_qty=qty,
                     batch_number=_make_batch_number(rng),
                     expiry_date=_make_expiry(rng, days_ahead=rng.randint(30, 180)),
@@ -238,7 +242,6 @@ def generate_medium_scenario(
             }
 
         else:
-            # Clean item — everything matches
             purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
             invoice.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
             scan_data.append(
@@ -257,7 +260,7 @@ def generate_medium_scenario(
     policy_rules = PolicyRules(
         min_shelf_life_days=4,
         max_transit_temp_celsius=8.0,
-        approved_substitutions={},  # No approved substitutions — the sub is unauthorized
+        approved_substitutions={},
     )
 
     return purchase_order, invoice, scan_data, cold_chain_log, policy_rules, ground_truth
@@ -281,39 +284,41 @@ def generate_hard_scenario(
     """
     Generate a scenario with hidden safety violations (Hard task).
 
-    10 SKUs total:
-    - 7 clean items (everything matches, good condition, good shelf life)
-    - 1 item with a damaged condition (visible in scan data)
-    - 1 item with a shelf life violation (expiry too close — must check against policy)
-    - 1 item that looks clean in docs, BUT cold chain log has a hidden temperature spike
+    8-12 SKUs total with randomized violation positions:
+    - 1-2 damaged items (visible in scan condition)
+    - 1 item with a shelf life violation (expiry too close)
+    - 1-2 items in the affected cold chain compartment
 
-    The cold chain spike affects ALL perishable items, but the agent must:
-    1. Proactively request the cold chain log
-    2. Detect the temperature spike
-    3. Reject the affected perishable SKU(s)
-
-    This tests whether the agent proactively checks auxiliary data that nobody asked about.
+    The cold chain spike is localized to one truck compartment.
+    Only SKUs assigned to that compartment are affected.
+    The agent must: (1) request the cold chain log, (2) find the spike,
+    (3) reject all SKUs whose compartment was affected.
     """
     rng = random.Random(seed)
-    products = rng.sample(PRODUCT_CATALOG, 10)
+    n_skus = rng.randint(8, 12)
+    products = rng.sample(PRODUCT_CATALOG, n_skus)
+
+    # Randomize how many of each violation type
+    n_damaged = rng.randint(1, 2)
+    n_cold_chain = rng.randint(1, 2)
+    # Always exactly 1 shelf life violation
+
+    # Shuffle indices and assign violations
+    all_indices = list(range(n_skus))
+    rng.shuffle(all_indices)
+    damaged_indices = set(all_indices[:n_damaged])
+    shelf_life_index = all_indices[n_damaged]
+    cold_chain_indices = set(all_indices[n_damaged + 1:n_damaged + 1 + n_cold_chain])
 
     purchase_order = []
     invoice = []
     scan_data = []
     ground_truth = {}
 
-    damaged_index = 0     # First item: physically damaged
-    shelf_life_index = 1  # Second item: shelf life violation
-    cold_chain_index = 2  # Third item: perishable affected by cold chain spike
-
-    # Perishable SKUs that would be affected by cold chain violation
-    perishable_names = {"milk", "curd", "butter", "juice", "aamras"}
-
     for i, (sku_id, name, price) in enumerate(products):
         qty = rng.randint(15, 50)
 
-        if i == damaged_index:
-            # Damaged item — visible in scan condition
+        if i in damaged_indices:
             purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
             invoice.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
             scan_data.append(
@@ -328,7 +333,6 @@ def generate_hard_scenario(
             ground_truth[sku_id] = {"action": "reject", "reason": "damaged"}
 
         elif i == shelf_life_index:
-            # Shelf life violation — expiry is only 2 days away (policy requires 4)
             purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
             invoice.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
             scan_data.append(
@@ -342,9 +346,9 @@ def generate_hard_scenario(
             )
             ground_truth[sku_id] = {"action": "reject", "reason": "shelf_life_violation"}
 
-        elif i == cold_chain_index:
-            # This item looks perfectly clean on paper, but the cold chain has a spike
-            # making it unsafe. Agent must proactively check cold chain log.
+        elif i in cold_chain_indices:
+            # These items are in the affected cold chain compartment.
+            # Surface documents look fine, but cold chain log has a spike.
             purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
             invoice.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
             scan_data.append(
@@ -359,7 +363,6 @@ def generate_hard_scenario(
             ground_truth[sku_id] = {"action": "reject", "reason": "cold_chain_violation"}
 
         else:
-            # Clean item
             purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
             invoice.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
             scan_data.append(
@@ -373,7 +376,6 @@ def generate_hard_scenario(
             )
             ground_truth[sku_id] = {"action": "accept"}
 
-    # Cold chain log: mostly clean BUT with a hidden temperature spike
     cold_chain_log = _generate_cold_chain_with_spike(rng)
 
     policy_rules = PolicyRules(

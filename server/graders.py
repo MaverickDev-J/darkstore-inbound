@@ -60,6 +60,12 @@ def grade_clean_delivery(
     no_false_flags_score = 1.0 if false_flags == 0 else 0.0
 
     score = (accept_score * 0.7) + (no_false_flags_score * 0.3)
+
+    # Anti-gaming: penalize agents that false-flag/reject clean items
+    if total_skus > 0:
+        false_rejection_rate = false_flags / total_skus
+        score *= (1.0 - 0.5 * false_rejection_rate)
+
     return round(min(max(score, 0.0), 1.0), 4)
 
 
@@ -139,6 +145,16 @@ def grade_quantity_mismatch(
         thoroughness += 0.5
 
     score = (flag_score * 0.40) + (qty_score * 0.25) + (accept_score * 0.20) + (thoroughness * 0.15)
+
+    # Anti-gaming: penalize agents that incorrectly flag/reject clean items
+    if clean_items:
+        false_rejections = sum(
+            1 for sku_id in clean_items
+            if agent_decisions.get(sku_id, {}).get("action") in ("reject", "flag_shortage")
+        )
+        false_rejection_rate = false_rejections / len(clean_items)
+        score *= (1.0 - 0.5 * false_rejection_rate)
+
     return round(min(max(score, 0.0), 1.0), 4)
 
 
@@ -219,6 +235,17 @@ def grade_hidden_violation(
         + (reason_score * 0.10)
         + (thoroughness * 0.10)
     )
+
+    # Anti-gaming: penalize agents that blindly reject clean items
+    # This prevents the "reject everything" exploit (previously scored 73%)
+    if clean_items:
+        false_rejections = sum(
+            1 for sku_id in clean_items
+            if agent_decisions.get(sku_id, {}).get("action") in ("reject", "flag_shortage")
+        )
+        false_rejection_rate = false_rejections / len(clean_items)
+        score *= (1.0 - 0.5 * false_rejection_rate)
+
     return round(min(max(score, 0.0), 1.0), 4)
 
 

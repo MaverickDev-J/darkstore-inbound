@@ -43,16 +43,16 @@ Evaluated 7 April 2026 via HF router (`router.huggingface.co/v1`). All models ru
 
 | Model | Easy | Medium | Hard | Med-Hard | Expert | **Average** |
 |---|---|---|---|---|---|---|
-| Qwen3-32B (Latest) | **1.000** | 0.150 | 0.067 | 0.475 | 0.067 | 0.352 |
-| Qwen2.5-72B-Instruct (Strong) | **1.000** | **0.867** | **0.572** | 0.000 | **0.441** | **0.576** |
-| Llama-3.3-70B-Instruct (Strong) | 0.533 | 0.000 | 0.000 | 0.000 | 0.090 | 0.125 |
-| Llama-3.1-8B-Instruct (Weak) | 0.300 | 0.000 | 0.067 | 0.000 | 0.000 | 0.073 |
+| Qwen2.5-72B-Instruct | **1.000** | **0.867** | 0.572 | **1.000** | **0.441** | **0.776** |
+| Llama-3.3-70B-Instruct | **1.000** | 0.578 | **0.733** | 0.828 | 0.090 | 0.646 |
+| Qwen3-32B | **1.000** | 0.150 | 0.067 | 0.475 | 0.067 | 0.352 |
+| Llama-3.1-8B-Instruct | 0.300 | 0.000 | 0.000 | 0.150 | 0.067 | 0.103 |
 
 **Key observations:**
-- Clear **10x score gradient** between strongest (0.576) and weakest (0.073) models
-- Qwen3-32B scores lower overall due to reasoning-token overhead (`<think>` tags) consuming output budget
-- The **Hard** and **Expert** tasks meaningfully separate frontier models from weaker ones
-- Even the strongest model can't ace all tasks — proving genuine difficulty
+- Clear **7.5× score gradient** between strongest (0.776) and weakest (0.103) models
+- Qwen3-32B scores lower due to reasoning-token overhead (`<think>` tags consuming output budget)
+- **Expert task** (multi-violation chaos) is genuinely hard — even frontier models score < 0.5
+- The environment meaningfully separates model capability at every difficulty level
 - Full results in [`outputs/model_comparison.json`](outputs/model_comparison.json)
 
 ## Grader Design (Anti-Gaming)

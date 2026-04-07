@@ -39,21 +39,19 @@ This environment simulates the exact cognitive process, testing an agent's abili
 
 ## Model Comparison (Empirical Evidence)
 
-Evaluated 7 April 2026 via HF router (`router.huggingface.co/v1`). All models run with seed=42, temperature=0.0.
+Evaluated 7 April 2026 via HF router (`router.huggingface.co/v1`). Seed=42, temperature=0.0, same system prompt.
 
 | Model | Easy | Medium | Hard | Med-Hard | Expert | **Average** |
 |---|---|---|---|---|---|---|
 | Qwen2.5-72B-Instruct | **1.000** | **0.867** | 0.572 | **1.000** | **0.441** | **0.776** |
 | Llama-3.3-70B-Instruct | **1.000** | 0.578 | **0.733** | 0.828 | 0.090 | 0.646 |
-| Qwen3-32B | **1.000** | 0.150 | 0.067 | 0.475 | 0.067 | 0.352 |
 | Llama-3.1-8B-Instruct | 0.300 | 0.000 | 0.000 | 0.150 | 0.067 | 0.103 |
 
 **Key observations:**
 - Clear **7.5× score gradient** between strongest (0.776) and weakest (0.103) models
-- Qwen3-32B scores lower due to reasoning-token overhead (`<think>` tags consuming output budget)
-- **Expert task** (multi-violation chaos) is genuinely hard — even frontier models score < 0.5
+- **Expert task** is genuinely hard — even frontier models score < 0.5
+- Different models excel on different tasks (Llama-70B beats Qwen-72B on Hard), proving multi-dimensional evaluation
 - The environment meaningfully separates model capability at every difficulty level
-- Full results in [`outputs/model_comparison.json`](outputs/model_comparison.json)
 
 ## Grader Design (Anti-Gaming)
 

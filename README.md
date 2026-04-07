@@ -1,6 +1,6 @@
 ---
 title: Darkstore Inbound Environment Server
-emoji: "\U0001F4E6"
+emoji: "📦"
 colorFrom: yellow
 colorTo: red
 sdk: docker
@@ -13,122 +13,112 @@ tags:
 
 # DarkStore Inbound Receiving Environment
 
-A real-world OpenEnv simulation of a quick-commerce (dark store) receiving dock. An LLM agent must inspect incoming deliveries, compare physical scan data against purchase orders, and check cold chain logs to make accept, reject, or shortage decisions per SKU.
+A real-world OpenEnv RL environment simulating a quick-commerce (dark store) receiving dock. An LLM agent must inspect incoming deliveries, compare physical scan data against purchase orders, check cold chain logs, and verify invoice pricing to make accept, reject, or shortage decisions per SKU.
 
 ## Motivation
 
-Supply chain reconciliation (three-way matching) is a $100B+ industry problem. When goods arrive at a warehouse or dark store, receiving agents must rapidly verify that:
+Supply chain reconciliation (three-way matching) is a $100B+ industry problem. Every dark store and warehouse faces this daily: when goods arrive, receiving agents must verify that:
 
-1. What arrived matches what was ordered (Purchase Order).
-2. What the supplier is charging (Invoice) matches the physical count.
-3. The products are safe (Cold chain temperatures and shelf life requirements).
+1. What arrived matches what was ordered (Purchase Order)
+2. What the supplier charges (Invoice) matches the physical count and agreed prices
+3. The products are safe — cold chain compliance, shelf life, physical condition
 
-This environment simulates this exact process, testing an agent's ability to iteratively gather information, perform arithmetic checks, follow specific business policies, and identify hidden safety violations.
+This environment simulates the exact cognitive process, testing an agent's ability to iteratively gather information, perform arithmetic checks, follow business policies, and identify both obvious and hidden violations.
 
-## Task Descriptions and Expected Difficulty
+## Tasks
 
-This environment comes with 3 built-in tasks, each scored by a deterministic grader from 0.0 to 1.0.
+5 built-in tasks with genuine difficulty progression, each graded 0.0–1.0 by a deterministic grader with anti-gaming penalties.
 
-| Task | Difficulty | SKUs | Description |
+| Task | Difficulty | SKUs | What It Tests |
 |---|---|---|---|
-| `clean_delivery` | Easy | 5 | A perfect delivery. The agent must request the data, verify everything matches, and accept all SKUs. Tests basic instruction following and prevents over-cautious rejection. |
-| `quantity_mismatch` | Medium | 8 | A delivery with discrepancies. Contains quantity shortages and unauthorized substitutions. The agent must flag shortages with the correct missing amount and reject substitutions. Tests arithmetic and comparison reasoning. |
-| `hidden_violation` | Hard | 10 | Surface documents (PO and scan count) look perfect, but there is a hidden temperature spike in the cold chain log and an impending expiry date policy violation. Tests proactive investigation of non-obvious data sources. |
+| `clean_delivery` | Easy | 4–6 | Basic instruction following — gather data, accept all. Prevents over-cautious rejection. |
+| `quantity_mismatch` | Medium | 6–10 | Arithmetic + comparison — detect shortages and unauthorized substitutions at randomized positions. |
+| `hidden_violation` | Hard | 8–12 | Proactive investigation — surface documents look clean but cold chain log has a hidden spike. Agent must gather all data sources. |
+| `price_discrepancy` | Medium-Hard | 7–10 | Financial reasoning — detect invoice prices that exceed PO prices. Agent must compare unit prices and flag overcharging. |
+| `multi_violation_chaos` | Expert | 10–12 | Priority reasoning — some SKUs have multiple simultaneous violations. Agent must apply the correct priority rule (cold chain > shelf life > damaged > shortage). |
 
-## Baseline Scores
+## Model Comparison (Empirical Evidence)
 
-Baseline scores using the included `inference.py` script with `gpt-4.1` via Lightning AI:
+The following table shows scores across all 5 tasks for models of varying capability, accessed via the Hugging Face router. Scores decrease with model capability, demonstrating that this environment meaningfully differentiates between AI agents.
 
-| Task | Difficulty | Score |
-|---|---|---|
-| `clean_delivery` | Easy | **1.00** |
-| `quantity_mismatch` | Medium | **1.00** |
-| `hidden_violation` | Hard | **0.82** |
-| **Average** | | **0.94** |
+| Model | easy | medium | hard | med-hard | expert | **Average** |
+|---|---|---|---|---|---|---|
+| Qwen2.5-72B-Instruct | — | — | — | — | — | *run evaluate_models.py* |
+| Llama-3.3-70B-Instruct | — | — | — | — | — | *run evaluate_models.py* |
+| Qwen2.5-32B-Instruct | — | — | — | — | — | *run evaluate_models.py* |
+| Llama-3.1-8B-Instruct | — | — | — | — | — | *run evaluate_models.py* |
+
+> **Run `python evaluate_models.py` locally with `HF_TOKEN` set to generate this table.**
+> Results are saved to `outputs/model_comparison.json`.
+
+## Grader Design (Anti-Gaming)
+
+Each grader has multiple independent scoring components and an **anti-gaming penalty** that collapses trivial strategies:
+
+- A "reject everything" agent scores ~37% on the hard task (was ~73% before penalty)
+- A "accept everything" agent scores 0% on tasks with violations
+- Per-step rewards are **uniform and non-informative** (0.02 per valid action) — ground truth is only revealed at `finalize`, preventing reward exploitation
 
 ## Observation Space
 
-The observation is progressively revealed. Initially the agent only sees the Purchase Order and Policy Rules. Other documents must be explicitly requested via actions.
+Progressive information reveal — the agent starts with only the Purchase Order and Policy Rules. Other documents must be explicitly requested.
 
-| Field | Type | Description |
+| Field | Type | Revealed |
 |---|---|---|
-| `phase` | str | Current phase: `inspect`, `decide`, `complete` |
-| `steps_remaining` | int | Steps remaining before auto-finalize (starts at 25) |
-| `purchase_order` | List[LineItem] | What was ordered: SKU ID, name, qty, unit price |
-| `policy_rules` | PolicyRules | Min shelf life (days), max transit temp (C), approved substitutions |
-| `invoice` | List[LineItem] or None | Revealed after `request_invoice`. Supplier billing data |
-| `scan_data` | List[ScanItem] or None | Revealed after `request_scan`. Physical count, condition, expiry |
-| `cold_chain_log` | List[ColdChainReading] or None | Revealed after `request_cold_chain`. Transit temperatures |
-| `pending_skus` | List[str] | SKUs that still need a decision |
-| `resolved_skus` | List[str] | SKUs already decided upon |
-| `message` | str | Feedback from the last action |
+| `purchase_order` | List[LineItem] | Always |
+| `policy_rules` | PolicyRules | Always |
+| `pending_skus` | List[str] | Always |
+| `invoice` | List[LineItem] or None | After `request_invoice` |
+| `scan_data` | List[ScanItem] or None | After `request_scan` |
+| `cold_chain_log` | List[ColdChainReading] or None | After `request_cold_chain` |
+| `message` | str | Always |
+| `steps_remaining` | int | Always (max 25) |
 
 ## Action Space
 
-All actions are JSON objects with an `action_type` field.
+| Action | Parameters | Notes |
+|---|---|---|
+| `request_invoice` | — | Reveals invoice data |
+| `request_scan` | — | Reveals scan/count data |
+| `request_cold_chain` | — | Reveals temperature log |
+| `accept_sku` | `sku_id` | Accept as correctly delivered |
+| `flag_shortage` | `sku_id`, `shortage_qty` | Flag quantity discrepancy |
+| `reject_sku` | `sku_id`, `reason` | Reject with reason |
+| `finalize` | — | End episode, trigger grader |
 
-### Data Gathering (no reward, reveals data)
-
-```json
-{"action_type": "request_invoice"}
-{"action_type": "request_scan"}
-{"action_type": "request_cold_chain"}
-```
-
-### SKU Decisions (one per SKU)
-
-```json
-{"action_type": "accept_sku", "sku_id": "SKU001"}
-{"action_type": "flag_shortage", "sku_id": "SKU002", "shortage_qty": 5}
-{"action_type": "reject_sku", "sku_id": "SKU003", "reason": "damaged"}
-```
-
-Valid rejection reasons: `"damaged"`, `"expired"`, `"shelf_life_violation"`, `"cold_chain_violation"`, `"unauthorized_substitution"`
-
-### Episode Control
-
-```json
-{"action_type": "finalize"}
-```
+**Valid rejection reasons:** `damaged` · `expired` · `shelf_life_violation` · `cold_chain_violation` · `unauthorized_substitution` · `price_discrepancy`
 
 ## Reward Structure
 
-| Action | Reward |
+| Event | Reward |
 |---|---|
-| Data gathering (request_invoice, etc.) | 0 |
-| Correct accept/reject/shortage | +0.1 to +0.2 |
-| Wrong decision | -0.05 to -0.15 |
-| Correct rejection with right reason | +0.2 (bonus for exact reason) |
-| Finalize | Triggers grader, returns final score 0.0-1.0 |
+| Any valid data request | 0.0 |
+| Any valid SKU decision (accept/flag/reject) | +0.02 (progress, non-informative) |
+| `finalize` | Returns grader score 0.0–1.0 |
+
+The grader score is the sum of weighted sub-scores per task (correctness of decisions, precision of quantities, reason accuracy, data thoroughness). Correctness is only revealed at `finalize` to prevent reward hacking.
 
 ## Project Structure
 
 ```
 darkstore_inbound/
-  README.md              # This file (HF Spaces metadata + docs)
+  README.md              # This file
   openenv.yaml           # OpenEnv manifest
-  pyproject.toml         # Dependencies and project config
-  uv.lock                # Locked dependencies
+  pyproject.toml         # Dependencies
+  requirements.txt       # Pip-installable dependency list
   models.py              # Pydantic types: Action, Observation, State
-  client.py              # WebSocket client for programmatic use
-  __init__.py            # Package exports
-  inference.py           # Baseline LLM agent (openai client)
-  .env                   # Local API keys (not committed)
+  inference.py           # Baseline LLM agent (runs all 5 tasks)
+  evaluate_models.py     # Multi-model comparison script
+  outputs/               # Evaluation results (JSON)
   server/
-    app.py               # FastAPI application (HTTP + WebSocket)
+    app.py               # FastAPI server (HTTP + WebSocket)
     darkstore_inbound_environment.py  # Core reset()/step() logic
-    scenario_generator.py             # Seeded scenario generation
-    graders.py                        # Deterministic scoring (0.0-1.0)
-    Dockerfile                        # Container for HF Spaces
-    __init__.py
+    scenario_generator.py             # 5 seeded scenario generators
+    graders.py                        # 5 deterministic graders (0.0–1.0)
+    Dockerfile
 ```
 
-## Setup and Usage
-
-### Prerequisites
-
-- Python 3.10+
-- [uv](https://docs.astral.sh/uv/) package manager
+## Setup
 
 ### 1. Install
 
@@ -142,53 +132,41 @@ uv sync
 
 ```bash
 uv run server
-# Server: http://localhost:8000
-# Web UI: http://localhost:8000/web
+# Server:  http://localhost:8000
+# Web UI:  http://localhost:8000/web
 # API docs: http://localhost:8000/docs
 ```
 
 ### 3. Run Baseline Inference
 
-Create a `.env` file in the project root:
-
-```env
-API_BASE_URL=https://lightning.ai/api/v1/
-API_KEY=your_api_key_here
-MODEL_NAME=openai/gpt-4.1
-```
-
-Then run:
+No OpenAI key needed — uses the free Hugging Face router.
 
 ```bash
+# Get a free token at https://huggingface.co/settings/tokens
+set HF_TOKEN=your_hf_token_here
 python inference.py
 ```
 
-The script reads `API_BASE_URL`, `MODEL_NAME`, and `API_KEY` (or `HF_TOKEN`) from environment variables or `.env`, connects to the local server, and runs all 3 tasks.
-
-### 4. Deploy to Hugging Face Spaces
+### 4. Run Multi-Model Evaluation
 
 ```bash
-# Login to HF
-huggingface-cli login
-
-# Push
-openenv push --repo-id your-username/darkstore-inbound
+set HF_TOKEN=your_hf_token_here
+python evaluate_models.py
+# Results saved to outputs/model_comparison.json
 ```
 
-### 5. Environment Variables (for judges)
-
-The inference script accepts these standard env vars:
+### 5. Environment Variables
 
 | Variable | Description | Default |
 |---|---|---|
-| `API_BASE_URL` | OpenAI-compatible API endpoint | `https://router.huggingface.co/v1` |
-| `MODEL_NAME` | Model name | `openai/gpt-oss-120b:novita` |
-| `HF_TOKEN` | API key (also reads `API_KEY`) | -- |
+| `API_BASE_URL` | OpenAI-compatible endpoint | `https://router.huggingface.co/v1` |
+| `MODEL_NAME` | Model identifier | `openai/gpt-oss-120b:novita` |
+| `HF_TOKEN` | Authentication (also reads `API_KEY`) | — |
 | `ENV_URL` | Environment server URL | `http://localhost:8000` |
 
 ## Live Deployment
 
-- HF Space: https://huggingface.co/spaces/Maverick006/darkstore-inbound
-- Health: https://maverick006-darkstore-inbound.hf.space/health
-- Web UI: https://maverick006-darkstore-inbound.hf.space/web
-- API Docs: https://maverick006-darkstore-inbound.hf.space/docs
+- **HF Space:** https://huggingface.co/spaces/Maverick006/darkstore-inbound
+- **Health:** https://maverick006-darkstore-inbound.hf.space/health
+- **Web UI:** https://maverick006-darkstore-inbound.hf.space/web
+- **API Docs:** https://maverick006-darkstore-inbound.hf.space/docs

@@ -2,18 +2,18 @@
 """
 Baseline inference script for the DarkStore Inbound Environment.
 
-Runs an LLM agent against all 3 tasks (clean_delivery, quantity_mismatch,
-hidden_violation) and reports scores.
+Runs an LLM agent against all 5 tasks and reports scores.
 
-Setup:
-    Edit the .env file in this directory with your credentials, then run:
+Setup (uses Hugging Face router — no OpenAI key needed):
+    Get a free HF token at https://huggingface.co/settings/tokens, then:
+
+        set HF_TOKEN=your_hf_token_here
+        set MODEL_NAME=Qwen/Qwen2.5-72B-Instruct   # optional, has a default
         python inference.py
 
-    Or set env vars manually:
-        set API_BASE_URL=https://lightning.ai/api/v1/
-        set API_KEY=your_key_here
-        set MODEL_NAME=openai/gpt-4.1
-        python inference.py
+    Or set env vars in .env file:
+        HF_TOKEN=your_hf_token_here
+        MODEL_NAME=Qwen/Qwen2.5-72B-Instruct
 """
 
 from __future__ import annotations

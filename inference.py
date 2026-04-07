@@ -82,7 +82,7 @@ Step 2 — For each SKU in pending_skus, make exactly one decision:
 Step 3 — When all pending_skus are empty, call finalize.
 
 ## VALID REJECTION REASONS
-"damaged" | "expired" | "shelf_life_violation" | "cold_chain_violation" | "unauthorized_substitution"
+"damaged" | "expired" | "shelf_life_violation" | "cold_chain_violation" | "unauthorized_substitution" | "price_discrepancy"
 
 ## OUTPUT FORMAT
 Respond with exactly one JSON action per turn. No text, no explanation, just JSON.

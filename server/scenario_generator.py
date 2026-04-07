@@ -80,7 +80,7 @@ def _make_expiry(rng: random.Random, days_ahead: int) -> str:
 
 def _generate_clean_cold_chain(rng: random.Random, n_readings: int = 12) -> List[ColdChainReading]:
     """Generate a cold chain log with all temperatures within safe range (2-6°C)."""
-    base_time = datetime.strptime(f"{DELIVERY_DATE}T06:00:00", "%Y-%m-%dT%H:%M:%S")
+    base_time = datetime.strptime(f"{_get_delivery_date()}T06:00:00", "%Y-%m-%dT%H:%M:%S")
     readings = []
     for i in range(n_readings):
         ts = base_time + timedelta(minutes=30 * i)
@@ -397,7 +397,7 @@ def _generate_cold_chain_with_spike(
     3 consecutive readings in the middle spike to 12-15°C (above 8°C threshold).
     This simulates a refrigeration failure during transit.
     """
-    base_time = datetime.strptime(f"{DELIVERY_DATE}T04:00:00", "%Y-%m-%dT%H:%M:%S")
+    base_time = datetime.strptime(f"{_get_delivery_date()}T04:00:00", "%Y-%m-%dT%H:%M:%S")
 
     # Spike happens roughly in the middle of transit
     spike_start = n_readings // 3

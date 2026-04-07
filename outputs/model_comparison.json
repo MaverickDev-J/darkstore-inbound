@@ -1,0 +1,182 @@
+{
+  "timestamp": "2026-04-07T22:17:43.124284",
+  "env": "darkstore_inbound",
+  "api_base": "https://router.huggingface.co/v1",
+  "tasks": [
+    "clean_delivery",
+    "quantity_mismatch",
+    "hidden_violation",
+    "price_discrepancy",
+    "multi_violation_chaos"
+  ],
+  "results": [
+    {
+      "model_id": "Qwen/Qwen2.5-72B-Instruct",
+      "model_label": "Qwen2.5-72B (Strong frontier)",
+      "task_results": [
+        {
+          "task": "clean_delivery",
+          "difficulty": "easy",
+          "score": 1.0,
+          "steps": 11,
+          "success": true
+        },
+        {
+          "task": "quantity_mismatch",
+          "difficulty": "medium",
+          "score": 0.8667,
+          "steps": 12,
+          "success": true
+        },
+        {
+          "task": "hidden_violation",
+          "difficulty": "hard",
+          "score": 0.5719,
+          "steps": 13,
+          "success": true
+        },
+        {
+          "task": "price_discrepancy",
+          "difficulty": "medium_hard",
+          "score": 0.0,
+          "steps": 1,
+          "success": false
+        },
+        {
+          "task": "multi_violation_chaos",
+          "difficulty": "expert",
+          "score": 0.441,
+          "steps": 9,
+          "success": true
+        }
+      ],
+      "average_score": 0.5759
+    },
+    {
+      "model_id": "meta-llama/Llama-3.3-70B-Instruct",
+      "model_label": "Llama-3.3-70B (Strong open-source)",
+      "task_results": [
+        {
+          "task": "clean_delivery",
+          "difficulty": "easy",
+          "score": 0.5333,
+          "steps": 6,
+          "success": true
+        },
+        {
+          "task": "quantity_mismatch",
+          "difficulty": "medium",
+          "score": 0.0,
+          "steps": 1,
+          "success": false
+        },
+        {
+          "task": "hidden_violation",
+          "difficulty": "hard",
+          "score": 0.0,
+          "steps": 1,
+          "success": false
+        },
+        {
+          "task": "price_discrepancy",
+          "difficulty": "medium_hard",
+          "score": 0.0,
+          "steps": 1,
+          "success": false
+        },
+        {
+          "task": "multi_violation_chaos",
+          "difficulty": "expert",
+          "score": 0.09,
+          "steps": 5,
+          "success": true
+        }
+      ],
+      "average_score": 0.1247
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-32B-Instruct",
+      "model_label": "Qwen2.5-32B (Medium)",
+      "task_results": [
+        {
+          "task": "clean_delivery",
+          "difficulty": "easy",
+          "score": 0.3,
+          "steps": 1,
+          "success": true
+        },
+        {
+          "task": "quantity_mismatch",
+          "difficulty": "medium",
+          "score": 0.0,
+          "steps": 1,
+          "success": false
+        },
+        {
+          "task": "hidden_violation",
+          "difficulty": "hard",
+          "score": 0.0,
+          "steps": 1,
+          "success": false
+        },
+        {
+          "task": "price_discrepancy",
+          "difficulty": "medium_hard",
+          "score": 0.0,
+          "steps": 1,
+          "success": false
+        },
+        {
+          "task": "multi_violation_chaos",
+          "difficulty": "expert",
+          "score": 0.0,
+          "steps": 1,
+          "success": false
+        }
+      ],
+      "average_score": 0.06
+    },
+    {
+      "model_id": "meta-llama/Llama-3.1-8B-Instruct",
+      "model_label": "Llama-3.1-8B (Weak small model)",
+      "task_results": [
+        {
+          "task": "clean_delivery",
+          "difficulty": "easy",
+          "score": 0.3,
+          "steps": 4,
+          "success": true
+        },
+        {
+          "task": "quantity_mismatch",
+          "difficulty": "medium",
+          "score": 0.0,
+          "steps": 1,
+          "success": false
+        },
+        {
+          "task": "hidden_violation",
+          "difficulty": "hard",
+          "score": 0.0667,
+          "steps": 4,
+          "success": true
+        },
+        {
+          "task": "price_discrepancy",
+          "difficulty": "medium_hard",
+          "score": 0.0,
+          "steps": 1,
+          "success": false
+        },
+        {
+          "task": "multi_violation_chaos",
+          "difficulty": "expert",
+          "score": 0.0,
+          "steps": 1,
+          "success": false
+        }
+      ],
+      "average_score": 0.0733
+    }
+  ]
+}

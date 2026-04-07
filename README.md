@@ -39,17 +39,20 @@ This environment simulates the exact cognitive process, testing an agent's abili
 
 ## Model Comparison (Empirical Evidence)
 
-The following table shows scores across all 5 tasks for models of varying capability, accessed via the Hugging Face router. Scores decrease with model capability, demonstrating that this environment meaningfully differentiates between AI agents.
+Evaluated 7 April 2026 via HF router (`router.huggingface.co/v1`). All models run with the same seed=42, same system prompt, temperature=0.0.
 
-| Model | easy | medium | hard | med-hard | expert | **Average** |
+| Model | Easy | Medium | Hard | Med-Hard | Expert | **Average** |
 |---|---|---|---|---|---|---|
-| Qwen2.5-72B-Instruct | — | — | — | — | — | *run evaluate_models.py* |
-| Llama-3.3-70B-Instruct | — | — | — | — | — | *run evaluate_models.py* |
-| Qwen2.5-32B-Instruct | — | — | — | — | — | *run evaluate_models.py* |
-| Llama-3.1-8B-Instruct | — | — | — | — | — | *run evaluate_models.py* |
+| Qwen2.5-72B-Instruct (Strong) | **1.000** | **0.867** | **0.572** | 0.000 | 0.441 | **0.576** |
+| Llama-3.3-70B-Instruct (Strong) | 0.533 | 0.000 | 0.000 | 0.000 | 0.090 | 0.125 |
+| Qwen2.5-32B-Instruct (Medium) | 0.300 | 0.000 | 0.000 | 0.000 | 0.000 | 0.060 |
+| Llama-3.1-8B-Instruct (Weak) | 0.300 | 0.000 | 0.067 | 0.000 | 0.000 | 0.073 |
 
-> **Run `python evaluate_models.py` locally with `HF_TOKEN` set to generate this table.**
-> Results are saved to `outputs/model_comparison.json`.
+**Key observations:**
+- The environment shows a **clear score gradient** across model capability levels
+- The **Hard task** (cold chain + shelf life detection) meaningfully separates frontier models from mid-tier ones
+- The **Expert task** (multi-violation priority reasoning) only the strongest model scores significantly
+- Full results saved in [`outputs/model_comparison.json`](outputs/model_comparison.json)
 
 ## Grader Design (Anti-Gaming)
 

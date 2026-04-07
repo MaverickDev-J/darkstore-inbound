@@ -425,6 +425,116 @@ def _generate_cold_chain_with_spike(
 
 
 # =============================================================================
+# MEDIUM-HARD: Price Discrepancy — invoice prices higher than PO prices
+# =============================================================================
+
+
+def generate_price_discrepancy_scenario(seed: int) -> Tuple[
+    List[LineItem], List[LineItem], List[ScanItem], List[ColdChainReading], PolicyRules, Dict[str, Dict]
+]:
+    """
+    7-10 SKUs. Some invoice prices exceed PO prices (supplier overcharging).
+    Physical quantities and conditions match. Agent must detect price mismatches
+    and reject overcharged SKUs with reason 'price_discrepancy'.
+    """
+    rng = random.Random(seed)
+    n_skus = rng.randint(7, 10)
+    n_overcharged = rng.randint(2, min(4, n_skus - 2))
+    products = rng.sample(PRODUCT_CATALOG, n_skus)
+    all_idx = list(range(n_skus))
+    rng.shuffle(all_idx)
+    overcharged = set(all_idx[:n_overcharged])
+    purchase_order, invoice, scan_data, ground_truth = [], [], [], {}
+    for i, (sku_id, name, price) in enumerate(products):
+        qty = rng.randint(10, 50)
+        if i in overcharged:
+            pct = rng.choice([0.05, 0.08, 0.10, 0.15, 0.20])
+            inv_price = round(price * (1.0 + pct), 2)
+            purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
+            invoice.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=inv_price))
+            scan_data.append(ScanItem(sku_id=sku_id, scanned_qty=qty, batch_number=_make_batch_number(rng),
+                expiry_date=_make_expiry(rng, rng.randint(30, 180)), condition="good"))
+            ground_truth[sku_id] = {"action": "reject", "reason": "price_discrepancy",
+                                     "po_price": price, "invoice_price": inv_price}
+        else:
+            purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
+            invoice.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
+            scan_data.append(ScanItem(sku_id=sku_id, scanned_qty=qty, batch_number=_make_batch_number(rng),
+                expiry_date=_make_expiry(rng, rng.randint(30, 180)), condition="good"))
+            ground_truth[sku_id] = {"action": "accept"}
+    cold_chain_log = _generate_clean_cold_chain(rng)
+    policy_rules = PolicyRules(min_shelf_life_days=4, max_transit_temp_celsius=8.0, approved_substitutions={})
+    return purchase_order, invoice, scan_data, cold_chain_log, policy_rules, ground_truth
+
+
+# =============================================================================
+# EXPERT: Multi-Violation Chaos — multiple simultaneous violations per SKU
+# =============================================================================
+
+
+def generate_multi_violation_scenario(seed: int) -> Tuple[
+    List[LineItem], List[LineItem], List[ScanItem], List[ColdChainReading], PolicyRules, Dict[str, Dict]
+]:
+    """
+    10-12 SKUs. Some SKUs have multiple simultaneous violations.
+    Priority rules: cold_chain > shelf_life > damaged > shortage.
+    Agent must identify the primary (highest priority) violation per SKU.
+    Cold chain has a spike affecting SKUs in the cold_chain_and_short group.
+    """
+    rng = random.Random(seed)
+    n_skus = rng.randint(10, 12)
+    products = rng.sample(PRODUCT_CATALOG, n_skus)
+    all_idx = list(range(n_skus))
+    rng.shuffle(all_idx)
+    damaged_and_short = set(all_idx[:2])
+    cold_chain_and_short = set(all_idx[2:4])
+    shelf_life_only = {all_idx[4]}
+    shortage_only = set(all_idx[5:7])
+    purchase_order, invoice, scan_data, ground_truth = [], [], [], {}
+    for i, (sku_id, name, price) in enumerate(products):
+        qty = rng.randint(20, 60)
+        if i in damaged_and_short:
+            sh = rng.randint(3, min(8, qty - 1))
+            aq = qty - sh
+            purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
+            invoice.append(LineItem(sku_id=sku_id, name=name, quantity=aq, unit_price=price))
+            scan_data.append(ScanItem(sku_id=sku_id, scanned_qty=aq, batch_number=_make_batch_number(rng),
+                expiry_date=_make_expiry(rng, rng.randint(30, 180)), condition="damaged"))
+            ground_truth[sku_id] = {"action": "reject", "reason": "damaged"}
+        elif i in cold_chain_and_short:
+            sh = rng.randint(3, min(8, qty - 1))
+            aq = qty - sh
+            purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
+            invoice.append(LineItem(sku_id=sku_id, name=name, quantity=aq, unit_price=price))
+            scan_data.append(ScanItem(sku_id=sku_id, scanned_qty=aq, batch_number=_make_batch_number(rng),
+                expiry_date=_make_expiry(rng, rng.randint(30, 180)), condition="good"))
+            ground_truth[sku_id] = {"action": "reject", "reason": "cold_chain_violation"}
+        elif i in shelf_life_only:
+            purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
+            invoice.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
+            scan_data.append(ScanItem(sku_id=sku_id, scanned_qty=qty, batch_number=_make_batch_number(rng),
+                expiry_date=_make_expiry(rng, 2), condition="good"))
+            ground_truth[sku_id] = {"action": "reject", "reason": "shelf_life_violation"}
+        elif i in shortage_only:
+            sh = rng.randint(3, min(10, qty - 1))
+            aq = qty - sh
+            purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
+            invoice.append(LineItem(sku_id=sku_id, name=name, quantity=aq, unit_price=price))
+            scan_data.append(ScanItem(sku_id=sku_id, scanned_qty=aq, batch_number=_make_batch_number(rng),
+                expiry_date=_make_expiry(rng, rng.randint(30, 180)), condition="good"))
+            ground_truth[sku_id] = {"action": "flag_shortage", "shortage_qty": sh}
+        else:
+            purchase_order.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
+            invoice.append(LineItem(sku_id=sku_id, name=name, quantity=qty, unit_price=price))
+            scan_data.append(ScanItem(sku_id=sku_id, scanned_qty=qty, batch_number=_make_batch_number(rng),
+                expiry_date=_make_expiry(rng, rng.randint(30, 180)), condition="good"))
+            ground_truth[sku_id] = {"action": "accept"}
+    cold_chain_log = _generate_cold_chain_with_spike(rng)
+    policy_rules = PolicyRules(min_shelf_life_days=4, max_transit_temp_celsius=8.0, approved_substitutions={})
+    return purchase_order, invoice, scan_data, cold_chain_log, policy_rules, ground_truth
+
+
+# =============================================================================
 # Generator dispatcher
 # =============================================================================
 
@@ -433,12 +543,16 @@ TASK_GENERATORS = {
     "clean_delivery": generate_easy_scenario,
     "quantity_mismatch": generate_medium_scenario,
     "hidden_violation": generate_hard_scenario,
+    "price_discrepancy": generate_price_discrepancy_scenario,
+    "multi_violation_chaos": generate_multi_violation_scenario,
 }
 
 TASK_DIFFICULTY = {
     "clean_delivery": "easy",
     "quantity_mismatch": "medium",
     "hidden_violation": "hard",
+    "price_discrepancy": "medium_hard",
+    "multi_violation_chaos": "expert",
 }
 
 

@@ -68,6 +68,7 @@ VALID_REJECT_REASONS = {
     "cold_chain_violation",
     "unauthorized_substitution",
     "shelf_life_violation",
+    "price_discrepancy",
 }
 
 # Default task if none specified

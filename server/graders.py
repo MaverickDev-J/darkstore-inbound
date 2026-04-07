@@ -249,6 +249,141 @@ def grade_hidden_violation(
     return round(min(max(score, 0.0), 1.0), 4)
 
 
+def grade_price_discrepancy(
+    agent_decisions: Dict[str, Dict],
+    ground_truth: Dict[str, Dict],
+    data_requested: Dict[str, bool],
+) -> float:
+    """
+    Grade the Price Discrepancy task (Medium-Hard).
+
+    Score breakdown:
+      - 50%: Correctly rejected overcharged SKUs / total overcharged
+      - 20%: No false rejections (accepted clean items)
+      - 15%: Data thoroughness (requested invoice)
+      - 15%: Correct reason code ('price_discrepancy')
+    """
+    if not ground_truth:
+        return 0.0
+
+    overcharged = {k: v for k, v in ground_truth.items() if v["action"] == "reject"}
+    clean_items = {k: v for k, v in ground_truth.items() if v["action"] == "accept"}
+
+    # 1. Detected overcharged SKUs
+    detected = sum(
+        1 for sku_id in overcharged
+        if agent_decisions.get(sku_id, {}).get("action") == "reject"
+    )
+    detection_score = detected / len(overcharged) if overcharged else 1.0
+
+    # 2. Correct accepts
+    correct_accepts = sum(
+        1 for sku_id in clean_items
+        if agent_decisions.get(sku_id, {}).get("action") == "accept"
+    )
+    accept_score = correct_accepts / len(clean_items) if clean_items else 1.0
+
+    # 3. Data thoroughness (invoice is critical for price comparison)
+    thoroughness = 1.0 if data_requested.get("invoice", False) else 0.0
+
+    # 4. Correct reason codes
+    correct_reasons = sum(
+        1 for sku_id in overcharged
+        if agent_decisions.get(sku_id, {}).get("action") == "reject"
+        and agent_decisions.get(sku_id, {}).get("reason") == "price_discrepancy"
+    )
+    reason_score = correct_reasons / len(overcharged) if overcharged else 1.0
+
+    score = (detection_score * 0.50) + (accept_score * 0.20) + (thoroughness * 0.15) + (reason_score * 0.15)
+
+    # Anti-gaming: penalize false rejections of clean items
+    if clean_items:
+        false_rejections = sum(
+            1 for sku_id in clean_items
+            if agent_decisions.get(sku_id, {}).get("action") == "reject"
+        )
+        score *= (1.0 - 0.5 * (false_rejections / len(clean_items)))
+
+    return round(min(max(score, 0.0), 1.0), 4)
+
+
+def grade_multi_violation(
+    agent_decisions: Dict[str, Dict],
+    ground_truth: Dict[str, Dict],
+    data_requested: Dict[str, bool],
+) -> float:
+    """
+    Grade the Multi-Violation Chaos task (Expert).
+
+    Score breakdown:
+      - 40%: Correct primary decision (right action type) for violation SKUs
+      - 25%: Correct reason code (right priority applied)
+      - 20%: Correctly accepted clean items (no false flags)
+      - 10%: Data thoroughness (all 3 sources)
+      - 5%:  Correctly handled shortage-only items (flag_shortage with right qty)
+    """
+    if not ground_truth:
+        return 0.0
+
+    violations = {k: v for k, v in ground_truth.items() if v["action"] in ("reject", "flag_shortage")}
+    rejects = {k: v for k, v in violations.items() if v["action"] == "reject"}
+    shortages = {k: v for k, v in violations.items() if v["action"] == "flag_shortage"}
+    clean_items = {k: v for k, v in ground_truth.items() if v["action"] == "accept"}
+
+    # 1. Correct primary action for reject SKUs
+    correct_rejects = sum(
+        1 for sku_id in rejects
+        if agent_decisions.get(sku_id, {}).get("action") == "reject"
+    )
+    reject_score = correct_rejects / len(rejects) if rejects else 1.0
+
+    # 2. Correct reason codes (priority reasoning)
+    correct_reasons = sum(
+        1 for sku_id in rejects
+        if agent_decisions.get(sku_id, {}).get("action") == "reject"
+        and agent_decisions.get(sku_id, {}).get("reason") == rejects[sku_id].get("reason")
+    )
+    reason_score = correct_reasons / len(rejects) if rejects else 1.0
+
+    # 3. Correctly accepted clean items
+    correct_accepts = sum(
+        1 for sku_id in clean_items
+        if agent_decisions.get(sku_id, {}).get("action") == "accept"
+    )
+    accept_score = correct_accepts / len(clean_items) if clean_items else 1.0
+
+    # 4. Data thoroughness
+    sources = sum(1 for s in ["invoice", "scan", "cold_chain"] if data_requested.get(s, False))
+    thoroughness = sources / 3.0
+
+    # 5. Shortage handling
+    correct_shortages = sum(
+        1 for sku_id, expected in shortages.items()
+        if agent_decisions.get(sku_id, {}).get("action") == "flag_shortage"
+        and abs(agent_decisions.get(sku_id, {}).get("shortage_qty", 0) - expected.get("shortage_qty", 0))
+           / max(expected.get("shortage_qty", 1), 1) <= 0.2
+    )
+    shortage_score = correct_shortages / len(shortages) if shortages else 1.0
+
+    score = (
+        (reject_score * 0.40)
+        + (reason_score * 0.25)
+        + (accept_score * 0.20)
+        + (thoroughness * 0.10)
+        + (shortage_score * 0.05)
+    )
+
+    # Anti-gaming: penalize false rejections
+    if clean_items:
+        false_rejections = sum(
+            1 for sku_id in clean_items
+            if agent_decisions.get(sku_id, {}).get("action") in ("reject", "flag_shortage")
+        )
+        score *= (1.0 - 0.5 * (false_rejections / len(clean_items)))
+
+    return round(min(max(score, 0.0), 1.0), 4)
+
+
 # =============================================================================
 # Dispatcher
 # =============================================================================
@@ -257,6 +392,8 @@ TASK_GRADERS = {
     "clean_delivery": grade_clean_delivery,
     "quantity_mismatch": grade_quantity_mismatch,
     "hidden_violation": grade_hidden_violation,
+    "price_discrepancy": grade_price_discrepancy,
+    "multi_violation_chaos": grade_multi_violation,
 }
 
 
@@ -270,7 +407,8 @@ def grade_episode(
     Grade an episode for the given task.
 
     Args:
-        task_name: One of 'clean_delivery', 'quantity_mismatch', 'hidden_violation'
+        task_name: One of 'clean_delivery', 'quantity_mismatch', 'hidden_violation',
+                   'price_discrepancy', 'multi_violation_chaos'
         agent_decisions: Agent's per-SKU decisions
         ground_truth: Expected correct decisions from scenario generator
         data_requested: Which data sources the agent requested

@@ -50,9 +50,11 @@ MODEL = os.getenv("MODEL_NAME") or os.getenv("MODEL", "openai/gpt-oss-120b:novit
 ENV_URL = os.getenv("ENV_URL", "http://localhost:8000")
 
 TASKS = [
-    {"name": "clean_delivery",    "seed": 42, "difficulty": "easy"},
-    {"name": "quantity_mismatch", "seed": 42, "difficulty": "medium"},
-    {"name": "hidden_violation",  "seed": 42, "difficulty": "hard"},
+    {"name": "clean_delivery",       "seed": 42, "difficulty": "easy"},
+    {"name": "quantity_mismatch",     "seed": 42, "difficulty": "medium"},
+    {"name": "hidden_violation",      "seed": 42, "difficulty": "hard"},
+    {"name": "price_discrepancy",     "seed": 42, "difficulty": "medium_hard"},
+    {"name": "multi_violation_chaos", "seed": 42, "difficulty": "expert"},
 ]
 
 MAX_TOKENS = 1024

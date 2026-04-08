@@ -45,8 +45,12 @@ if os.path.exists(_env_file):
 # ---------------------------------------------------------------------------
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
-MODEL = os.getenv("MODEL_NAME") or os.getenv("MODEL", "openai/gpt-oss-120b:novita")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+# Derived — also support legacy names
+API_KEY = HF_TOKEN or os.getenv("API_KEY") or os.getenv("OPENAI_API_KEY")
+MODEL = MODEL_NAME
 ENV_URL = os.getenv("ENV_URL", "http://localhost:8000")
 
 TASKS = [

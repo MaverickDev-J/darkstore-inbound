@@ -40,7 +40,7 @@ def grade_clean_delivery(
         Score between 0.0 and 1.0
     """
     if not ground_truth:
-        return 0.0
+        return 0.01
 
     total_skus = len(ground_truth)
     correct_accepts = 0
@@ -66,7 +66,7 @@ def grade_clean_delivery(
         false_rejection_rate = false_flags / total_skus
         score *= (1.0 - 0.5 * false_rejection_rate)
 
-    return round(min(max(score, 0.0), 1.0), 4)
+    return round(min(max(score, 0.01), 0.99), 4)
 
 
 def grade_quantity_mismatch(
@@ -92,7 +92,7 @@ def grade_quantity_mismatch(
         Score between 0.0 and 1.0
     """
     if not ground_truth:
-        return 0.0
+        return 0.01
 
     # Separate ground truth into discrepancies and clean items
     discrepancies = {k: v for k, v in ground_truth.items() if v["action"] != "accept"}
@@ -155,7 +155,7 @@ def grade_quantity_mismatch(
         false_rejection_rate = false_rejections / len(clean_items)
         score *= (1.0 - 0.5 * false_rejection_rate)
 
-    return round(min(max(score, 0.0), 1.0), 4)
+    return round(min(max(score, 0.01), 0.99), 4)
 
 
 def grade_hidden_violation(
@@ -182,7 +182,7 @@ def grade_hidden_violation(
         Score between 0.0 and 1.0
     """
     if not ground_truth:
-        return 0.0
+        return 0.01
 
     violations = {k: v for k, v in ground_truth.items() if v["action"] == "reject"}
     clean_items = {k: v for k, v in ground_truth.items() if v["action"] == "accept"}
@@ -246,7 +246,7 @@ def grade_hidden_violation(
         false_rejection_rate = false_rejections / len(clean_items)
         score *= (1.0 - 0.5 * false_rejection_rate)
 
-    return round(min(max(score, 0.0), 1.0), 4)
+    return round(min(max(score, 0.01), 0.99), 4)
 
 
 def grade_price_discrepancy(
@@ -264,7 +264,7 @@ def grade_price_discrepancy(
       - 15%: Correct reason code ('price_discrepancy')
     """
     if not ground_truth:
-        return 0.0
+        return 0.01
 
     overcharged = {k: v for k, v in ground_truth.items() if v["action"] == "reject"}
     clean_items = {k: v for k, v in ground_truth.items() if v["action"] == "accept"}
@@ -304,7 +304,7 @@ def grade_price_discrepancy(
         )
         score *= (1.0 - 0.5 * (false_rejections / len(clean_items)))
 
-    return round(min(max(score, 0.0), 1.0), 4)
+    return round(min(max(score, 0.01), 0.99), 4)
 
 
 def grade_multi_violation(
@@ -323,7 +323,7 @@ def grade_multi_violation(
       - 5%:  Correctly handled shortage-only items (flag_shortage with right qty)
     """
     if not ground_truth:
-        return 0.0
+        return 0.01
 
     violations = {k: v for k, v in ground_truth.items() if v["action"] in ("reject", "flag_shortage")}
     rejects = {k: v for k, v in violations.items() if v["action"] == "reject"}
@@ -381,7 +381,7 @@ def grade_multi_violation(
         )
         score *= (1.0 - 0.5 * (false_rejections / len(clean_items)))
 
-    return round(min(max(score, 0.0), 1.0), 4)
+    return round(min(max(score, 0.01), 0.99), 4)
 
 
 # =============================================================================
@@ -426,5 +426,5 @@ def grade_episode(
     try:
         return TASK_GRADERS[task_name](agent_decisions, ground_truth, data_requested)
     except Exception:
-        # Safety net — never crash, never return NaN
-        return 0.0
+        # Safety net — never crash, never return NaN or out-of-range
+        return 0.01

@@ -5,14 +5,11 @@ WORKDIR /app
 # Install uv
 RUN pip install uv
 
-# Copy dependency files first for layer caching
-COPY pyproject.toml uv.lock ./
+# Copy everything first (editable install needs server/ to exist)
+COPY . .
 
 # Install dependencies
 RUN uv sync --frozen --no-dev
-
-# Copy the rest of the project
-COPY . .
 
 # Expose port
 EXPOSE 7860

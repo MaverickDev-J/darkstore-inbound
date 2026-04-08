@@ -11,8 +11,7 @@ __pycache__/
 dist/
 build/
 
-# UV lock (huge file, regenerated with uv sync)
-uv.lock
+# UV lock (now required by hackathon validator)
 
 # IDE
 .vscode/
